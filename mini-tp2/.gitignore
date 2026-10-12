@@ -1,0 +1,23 @@
+# Claude Code
+.claude/
+CLAUDE.md
+graphify-out/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Modelo (pesa demasiado para git; generarlo con train-model del Mini-TP1)
+model/model.joblib
+
+# Node / React (client-app)
+client-app/node_modules/
+client-app/dist/
+
+# uv
+uv.lock

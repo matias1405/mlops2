@@ -1,0 +1,58 @@
+# nginx del ambiente ${ENV_NAME}: sirve el frontend y es el único punto de entrada HTTP.
+#   /            React (SPA) estático
+#   /config.json configuración de runtime (realm/client del ambiente), generada al arrancar
+#   /api/        -> api-gateway del mismo ambiente
+#   /media/posters/ -> MinIO bucket posters (solo lectura, solo GET/HEAD)
+server {
+    listen 8080;
+    server_tokens off;
+    root /usr/share/nginx/html;
+    client_max_body_size 64k;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+
+    location = /config.json {
+        alias /etc/nginx/conf.d/config.json;
+        default_type application/json;
+        add_header Cache-Control "no-store" always;
+        include /etc/nginx/conf.d/security.inc;
+    }
+
+    location /api/ {
+        proxy_pass http://gateway:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 30s;
+        include /etc/nginx/conf.d/security.inc;
+    }
+
+    location /media/posters/ {
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://minio:9000/posters/;
+        proxy_set_header Host minio:9000;
+        proxy_hide_header x-amz-request-id;
+        proxy_hide_header x-amz-id-2;
+        proxy_hide_header Server;
+        proxy_intercept_errors on;
+        error_page 403 404 = @poster_missing;
+        expires 30d;
+        include /etc/nginx/conf.d/security.inc;
+    }
+    location @poster_missing { return 404; }
+    # Cualquier otro bucket bajo /media no existe para el navegador.
+    location /media/ { return 404; }
+
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable" always;
+        include /etc/nginx/conf.d/security.inc;
+    }
+
+    location / {
+        try_files $uri /index.html;
+        add_header Cache-Control "no-cache" always;
+        include /etc/nginx/conf.d/security.inc;
+    }
+}

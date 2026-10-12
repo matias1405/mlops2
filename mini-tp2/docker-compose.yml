@@ -1,0 +1,44 @@
+services:
+  fastapi:
+    build:
+      context: ./fastapi
+    ports:
+      - "8000:8000"
+    environment:
+      MODEL_NAME: "PredictionMovies"
+      MODEL_VERSION: "1"
+    volumes:
+      # Solo lectura: mismo model/ que graphql, para que /v1/metrics y la
+      # query GraphQL lean exactamente el mismo metrics.json.
+      - ./model:/app/model:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  graphql:
+    build:
+      context: ./graphql
+    ports:
+      - "8001:8000"
+    environment:
+      MODEL_NAME: "PredictionMovies"
+      MODEL_VERSION: "1"
+      METRICS_PATH: /app/model/metrics.json
+    volumes:
+      # Solo lectura: metrics.json puede no existir todavía (ver README);
+      # el resolver cae a valores en 0.0 en ese caso.
+      - ./model:/app/model:ro
+
+  client-app:
+    build:
+      context: ./client-app
+      args:
+        VITE_API_URL: http://localhost:8000
+        VITE_GRAPHQL_URL: http://localhost:8001
+    ports:
+      - "3001:80"
+    depends_on:
+      - fastapi
+      - graphql

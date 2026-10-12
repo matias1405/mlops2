@@ -1,0 +1,5 @@
+# Extras del venv trainer agregados después de torch (capa aparte en el Dockerfile).
+pandera==0.34.1
+pytest==9.1.1
+grpcio==1.68.1
+psycopg[binary]==3.3.6

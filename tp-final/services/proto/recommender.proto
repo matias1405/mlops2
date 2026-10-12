@@ -1,0 +1,56 @@
+// Contrato interno entre api-gateway / Airflow y recommender-svc.
+// Python: `make proto` genera ml/src/movierec_ml/proto/recommender_pb2*.py (versionados).
+syntax = "proto3";
+
+package movierec.recommender.v1;
+
+service Recommender {
+  // Recomendaciones de día 0: los vecinos más cercanos (coseno) de CADA película elegida, con la similitud
+  // normalizada por semilla (z-score); se devuelven los k mejores del conjunto.
+  rpc Recommend(RecommendRequest) returns (RecommendResponse);
+  // Versión del modelo cargado (alias, versión del registry, contrato).
+  rpc GetModelInfo(GetModelInfoRequest) returns (ModelInfo);
+  // Recarga models:/<name>@<alias> desde MLflow. Requiere JWT del realm `platform` con rol
+  // `model-deployer` en la metadata `authorization: Bearer <token>`. Si el bundle nuevo no es
+  // compatible (contract_version) se rechaza y se mantiene el modelo actual.
+  rpc Reload(ReloadRequest) returns (ReloadResponse);
+}
+
+message RecommendRequest {
+  repeated int64 movie_ids = 1;  // películas elegidas en el onboarding
+  int32 k = 2;                   // cantidad de recomendaciones (1..100; 0 = 10)
+}
+
+message Recommendation {
+  int64 movie_id = 1;
+  float score = 2;       // similitud normalizada (z-score respecto de la semilla que la aportó)
+  int64 because_of = 3;  // película elegida por la que aparece esta recomendación
+}
+
+message RecommendResponse {
+  repeated Recommendation items = 1;
+  repeated int64 unknown_movie_ids = 2;  // ids que no están en el catálogo del modelo (se ignoran)
+  ModelInfo model = 3;
+}
+
+message GetModelInfoRequest {}
+
+message ModelInfo {
+  string model_name = 1;
+  string alias = 2;
+  string version = 3;
+  int32 contract_version = 4;
+  int32 embedding_dim = 5;
+  int32 n_movies = 6;
+  string config = 7;
+  reserved 8;  // dataset_version: la plataforma no registra procedencia de datos
+  string loaded_at = 9;
+}
+
+message ReloadRequest {}
+
+message ReloadResponse {
+  bool reloaded = 1;   // false si ya estaba cargada la misma versión
+  ModelInfo model = 2;
+  string message = 3;
+}

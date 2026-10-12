@@ -1,0 +1,7 @@
+# Venv del entrenamiento (torch CPU se instala aparte desde el índice de PyTorch).
+mlflow-skinny==2.19.0
+pandas==2.2.3
+pyarrow==18.1.0
+scikit-learn==1.8.0
+pyyaml==6.0.2
+boto3==1.35.99

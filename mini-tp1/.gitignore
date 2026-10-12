@@ -1,0 +1,22 @@
+# Claude Code
+.claude/
+CLAUDE.md
+graphify-out/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Training artifacts
+train-model/model.joblib
+train-model/metrics.json
+train-model/dataset/
+
+# Node / React (client-app)
+client-app/node_modules/
+client-app/dist/

@@ -1,0 +1,24 @@
+services:
+  fastapi:
+    build:
+      context: .
+      dockerfile: fastapi/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      MODEL_VERSION: "1.0.0"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  client-app:
+    build:
+      context: ./client-app
+      args:
+        VITE_API_URL: http://localhost:8000
+    ports:
+      - "3001:80"
+    depends_on:
+      - fastapi

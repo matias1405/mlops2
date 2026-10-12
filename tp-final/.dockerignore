@@ -1,0 +1,11 @@
+# Contexto de build = tp-final/. Nada de datos, secretos ni artefactos locales en las imágenes.
+data/
+*.env
+!*.env.template
+**/node_modules
+services/web/dist
+**/__pycache__
+**/*.pyc
+.git
+docs/
+services/web/design

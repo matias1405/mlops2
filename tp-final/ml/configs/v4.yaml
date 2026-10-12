@@ -1,0 +1,23 @@
+# Modelo v4: keywords (top 30) y productora como entrada; cabezas géneros + idioma
+# Clasificador de dos salidas; el embedding de película es la salida del tronco (las cabezas solo entrenan).
+name: v4
+text_columns: [title, overview, tagline]        # EmbeddingBag(mean) sobre estas columnas unidas
+tabular:
+  numeric: [budget, release_year]       # log1p(budget) y año estandarizados + indicador de nulo
+  categorical: {keywords: {top: 30}, production_companies: {top: 100}}
+targets:
+  genres: {type: multilabel}
+  original_language: {type: multiclass, top: 15}
+loss_weights: {genres: 1.0, original_language: 0.5}
+embedding_dim: 128        # dimensión del embedding de película (salida del tronco compartido)
+token_dim: 128            # dimensión de los embeddings de palabra (nn.EmbeddingBag)
+categorical_dim: 32       # proyección lineal de las categóricas one-hot / multi-hot
+vocab_size: 40000
+min_token_freq: 3
+max_tokens: 260           # tokens por película (se trunca)
+dropout: 0.2
+epochs: 15                # máximo; corta antes por early stopping
+early_stopping_patience: 3   # épocas sin mejora de val_loss
+batch_size: 512
+learning_rate: 0.002
+seed: 42

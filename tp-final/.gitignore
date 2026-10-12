@@ -1,0 +1,43 @@
+# Secretos generados por `make secrets` (solo se versionan las plantillas)
+# Los *.env generados quedan en la raíz junto al compose; solo se versionan las plantillas.
+/*.env
+!/*.env.template
+
+# Datos: solo se versiona el sample chico; el dataset completo se baja de Kaggle o se monta local
+data/*
+!data/sample/
+data/sample/*
+!data/sample/tmdb_sample.csv
+
+# Volúmenes locales y artefactos
+volumes/
+mlruns/
+*.ckpt
+*.pt
+
+# Node / frontend
+node_modules/
+services/web/dist/
+
+# Entornos locales
+.venv/
+.env
+
+# Reportes locales (escaneos de seguridad)
+reports/
+.playwright-mcp/
+
+# Material de desarrollo de la plataforma (no forma parte de la entrega)
+dev.mk
+scripts/verify_*
+scripts/check_secrets.py
+scripts/gen_proto.sh
+scripts/run_dag.sh
+PLAN-mejoras.md
+CriteriosAprobacion.md
+proyecto_recomendador_resumen.md
+PRODUCT.md
+DESIGN.md
+.impeccable/
+docs/adr/
+docs/experiments.md

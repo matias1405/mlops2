@@ -1,0 +1,1 @@
+{"envName": "${ENV_NAME}", "keycloakUrl": "${KEYCLOAK_PUBLIC_URL}", "realm": "${AUTH_REALM}", "clientId": "${WEB_CLIENT_ID}"}

@@ -1,0 +1,5 @@
+mlflow==2.19.0
+# mlflow 2.19 usa FallbackAsyncAdaptedQueuePool, que SQLAlchemy 2.1 eliminó.
+sqlalchemy==2.0.36
+psycopg2-binary==2.9.10
+boto3==1.35.99

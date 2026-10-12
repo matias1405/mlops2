@@ -1,0 +1,118 @@
+# Aplicación de un ambiente (dev o prod). Se instancia dos veces con la misma definición:
+#   make up-dev   ->  docker compose -p movierec-dev  -f compose.app.yml --env-file platform.env --env-file dev.env
+#   make up-prod  ->  docker compose -p movierec-prod -f compose.app.yml --env-file platform.env --env-file prod.env
+# Las imágenes son las mismas en ambos ambientes (etiqueta IMAGE_TAG: dev o prod); cambia el alias del modelo.
+# App:    make up-dev (imágenes :dev, modelo @dev) y make up-prod (las mismas imágenes como :prod,
+#         modelo @production). Modelo: promote y rollback desde la UI de Airflow (DAG promote).
+
+# Hardening: sin capabilities, sin escalada de privilegios y filesystem de solo lectura;
+# cada servicio monta tmpfs solo donde escribe.
+x-hardened: &hardened
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+  read_only: true
+
+services:
+  recommender:
+    <<: *hardened
+    tmpfs: ["/tmp:size=512m,mode=1777"]   # descarga temporal del bundle desde MLflow
+    build:
+      context: .
+      dockerfile: services/recommender/Dockerfile
+      target: runtime
+    image: movierec/recommender:${IMAGE_TAG:?definir IMAGE_TAG (dev o prod)}
+    restart: unless-stopped
+    environment:
+      MODEL_NAME: movierec
+      MODEL_ALIAS: ${MODEL_ALIAS}
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      JWT_ISSUER: ${KEYCLOAK_PUBLIC_URL}/realms/platform
+      JWKS_URL: http://keycloak:8080/realms/platform/protocol/openid-connect/certs
+      RELOAD_REQUIRED_ROLE: model-deployer
+    networks:
+      app: {}
+      ml_platform:
+        # Nombre único por ambiente en la red compartida: Airflow llama a recommender-dev / recommender-prod.
+        aliases: ["recommender-${ENV_NAME}"]
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+
+  gateway:
+    <<: *hardened
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+      target: runtime
+    image: movierec/gateway:${IMAGE_TAG:?definir IMAGE_TAG (dev o prod)}
+    restart: unless-stopped
+    depends_on:
+      recommender:
+        condition: service_healthy
+    environment:
+      ENV_NAME: ${ENV_NAME}
+      APP_DB_HOST: postgres
+      APP_DB_NAME: ${APP_DB_NAME}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+      RECOMMENDER_TARGET: recommender:50051
+      S3_ENDPOINT_URL: http://minio:9000
+      MINIO_GATEWAY_USER: ${MINIO_GATEWAY_USER}
+      MINIO_GATEWAY_SECRET: ${MINIO_GATEWAY_SECRET}
+      AUTH_ISSUER: ${KEYCLOAK_PUBLIC_URL}/realms/${AUTH_REALM}
+      JWKS_URL: http://keycloak:8080/realms/${AUTH_REALM}/protocol/openid-connect/certs
+      AUTH_ALLOWED_CLIENTS: ${AUTH_ALLOWED_CLIENTS}
+      AUTH_REQUIRED_ROLES: ${AUTH_REQUIRED_ROLES}
+    networks:
+      app: {}
+      # Postgres (su base), MinIO (bucket posters) y Keycloak (JWKS). Sin acceso a MLflow ni Airflow.
+      # Alias por ambiente: validate_dev (Airflow) llama a gateway-dev.
+      shared:
+        aliases: ["gateway-${ENV_NAME}"]
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  web:
+    <<: *hardened
+    # nginx escribe la config generada (envsubst) y su cache/pid: solo esas rutas son escribibles.
+    tmpfs: ["/tmp:size=32m,mode=1777", "/etc/nginx/conf.d:size=1m,mode=1777", "/var/cache/nginx:size=32m,mode=1777"]
+    build:
+      context: .
+      dockerfile: services/web/Dockerfile
+      target: runtime
+    image: movierec/web:${IMAGE_TAG:?definir IMAGE_TAG (dev o prod)}
+    restart: unless-stopped
+    depends_on:
+      gateway:
+        condition: service_healthy
+    ports:
+      # DEV: 127.0.0.1:8081 (no público). PROD: 0.0.0.0:80 (público).
+      - "${WEB_BIND}:8080"
+    environment:
+      ENV_NAME: ${ENV_NAME}
+      KEYCLOAK_PUBLIC_URL: ${KEYCLOAK_PUBLIC_URL}
+      AUTH_REALM: ${AUTH_REALM}
+      WEB_CLIENT_ID: ${WEB_CLIENT_ID}
+    networks:
+      app: {}
+      # Solo MinIO (para /media/posters). Sin acceso a Postgres ni a la plataforma ML.
+      media: {}
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+networks:
+  app: {}
+  media:
+    external: true
+    name: movierec_media
+  shared:
+    external: true
+    name: movierec_shared
+  ml_platform:
+    external: true
+    name: movierec_ml_platform

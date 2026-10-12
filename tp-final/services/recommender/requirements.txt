@@ -1,0 +1,9 @@
+grpcio==1.68.1
+grpcio-health-checking==1.68.1
+grpcio-reflection==1.68.1
+protobuf==5.29.6
+numpy==2.2.6
+pandas==2.2.3
+pyarrow==18.1.0
+mlflow-skinny==2.19.0
+pyjwt[crypto]==2.15.1
