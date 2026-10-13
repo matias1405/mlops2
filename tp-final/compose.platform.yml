@@ -74,6 +74,9 @@ services:
       POSTGRES_USER: ${POSTGRES_SUPERUSER}
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
       POSTGRES_DB: postgres
+      # En un disco lento, apagar el servidor temporal de la inicialización puede tardar más que los 60 s por
+      # defecto de pg_ctl: sin esto el contenedor se reinicia y tiene que recuperarse del WAL.
+      PGCTLTIMEOUT: "300"
       AIRFLOW_DB_PASSWORD: ${AIRFLOW_DB_PASSWORD}
       MLFLOW_DB_PASSWORD: ${MLFLOW_DB_PASSWORD}
       KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
@@ -83,7 +86,9 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./platform/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER} -d postgres"]
+      # Por TCP: el servidor temporal de la inicialización solo escucha en el socket local, así que el
+      # healthcheck no da OK hasta que arranca el servidor definitivo.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_SUPERUSER} -d postgres"]
       interval: 5s
       timeout: 5s
       retries: 20
