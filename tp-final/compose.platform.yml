@@ -89,10 +89,12 @@ services:
       # Por TCP: el servidor temporal de la inicialización solo escucha en el socket local, así que el
       # healthcheck no da OK hasta que arranca el servidor definitivo.
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_SUPERUSER} -d postgres"]
+      # Inicialización o recuperación del WAL lentas en un disco lento: margen amplio antes de dar unhealthy.
       interval: 5s
       timeout: 5s
       retries: 20
-      start_period: 20s
+      start_period: 10m
+      start_interval: 5s
 
   # ------------------------------------------------------------------- MinIO
   # Ajusta el dueño del volumen para que MinIO corra sin root (idempotente, termina enseguida).
@@ -226,9 +228,11 @@ services:
   # los secretos de los JSON son placeholders ${VAR} resueltos desde estas variables de entorno.
   keycloak:
     <<: *hardened
-    image: quay.io/keycloak/keycloak:26.5@sha256:45ae20191531eb608ddb0b775d012b40d3e4f942697f3214694887dd7c108d13
+    # Imagen precompilada (platform/keycloak/Dockerfile): arranca con --optimized, sin recompilar.
+    build: ./platform/keycloak
+    image: movierec/keycloak:26.5
     restart: unless-stopped
-    command: ["start", "--import-realm"]
+    command: ["start", "--optimized", "--import-realm"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -237,7 +241,6 @@ services:
       # Público: los usuarios finales de prod hacen login acá.
       - "${KEYCLOAK_PORT}:8080"
     environment:
-      KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
       KC_DB_USERNAME: keycloak
       KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
@@ -245,10 +248,8 @@ services:
       KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL}
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       KC_HTTP_ENABLED: "true"
-      KC_HEALTH_ENABLED: "true"
-      # Una sola instancia: cache local (sin cluster JDBC_PING, que tras un reinicio
-      # intenta unirse al nodo anterior registrado en la base y se cuelga).
-      KC_CACHE: local
+      # KC_DB, KC_HEALTH_ENABLED y KC_CACHE=local (una sola instancia, sin cluster JDBC_PING, que tras un
+      # reinicio intenta unirse al nodo anterior y se cuelga) quedan fijados en la imagen.
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
       JAVA_OPTS_KC_HEAP: "-Xms256m -Xmx768m"
@@ -261,10 +262,14 @@ services:
     healthcheck:
       # La imagen no trae curl: request HTTP crudo al puerto de management (9000).
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '\"UP\"' <&3"]
+      # El primer arranque (crea el esquema e importa los realms) puede pasar los 6 minutos en un disco lento:
+      # durante start_period los fallos no cuentan y el contenedor figura "starting", así que
+      # `up --wait` espera en vez de cortar; start_interval lo marca healthy apenas responde.
       interval: 10s
       timeout: 5s
-      retries: 30
-      start_period: 60s
+      retries: 6
+      start_period: 10m
+      start_interval: 5s
 
   # oauth2-proxy delante de la UI de MLflow: solo roles DE/DS/MLE del realm platform.
   # Discovery deshabilitado: el issuer es la URL pública, pero los endpoints de backchannel
