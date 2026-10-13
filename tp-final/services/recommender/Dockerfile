@@ -26,7 +26,7 @@ FROM base AS runtime
 COPY --from=test /tmp/tests-passed /tmp/tests-passed
 USER recommender
 EXPOSE 50051
-HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10m --start-interval=5s --retries=5 \
   CMD python -c "import grpc,sys; from grpc_health.v1 import health_pb2 as h, health_pb2_grpc as g; \
 r=g.HealthStub(grpc.insecure_channel('localhost:50051')).Check(h.HealthCheckRequest(service=''), timeout=3); \
 sys.exit(0 if r.status==h.HealthCheckResponse.SERVING else 1)"
