@@ -72,6 +72,9 @@ services:
   postgres:
     image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
     restart: unless-stopped
+    # Tras un apagado sin cerrar, la recuperación hace fsync archivo por archivo de todo el directorio de datos
+    # (más de 10 min en un disco lento); syncfs sincroniza el filesystem de una vez.
+    command: ["postgres", "-c", "recovery_init_sync_method=syncfs"]
     networks: [ml_platform, shared]
     environment:
       POSTGRES_USER: ${POSTGRES_SUPERUSER}
